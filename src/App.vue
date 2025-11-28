@@ -1,55 +1,66 @@
-<template>
-  <div class="min-h-screen bg-slate-100 text-slate-900">
-    <!-- Top nav -->
-    <header class="bg-white border-b border-slate-200">
-      <div class="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <div
-            class="h-8 w-8 rounded-md bg-blue-600 flex items-center justify-center text-white font-bold text-sm"
-          >
-            VS
-          </div>
-          <div>
-            <h1 class="text-sm font-semibold leading-tight">
-              DILG Provincial Voting System
-            </h1>
-            <p class="text-xs text-slate-500">
-              Internal prototype · not for production use
-            </p>
-          </div>
-        </div>
+<script setup>
+import { RouterView, RouterLink } from 'vue-router'
+import { useAuthStore } from './stores/auth'
+import { useRouter } from 'vue-router'
 
-        <nav class="flex gap-2 text-sm">
+const authStore = useAuthStore()
+const router = useRouter()
+
+const handleLogout = () => {
+  authStore.logout()
+  router.push('/login')
+}
+</script>
+
+<template>
+  <div class="min-h-screen bg-slate-100">
+    <header class="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-semibold text-slate-800"> DILG Voting System </span>
+        <span
+          class="ml-2 inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700"
+        >
+          Prototype
+        </span>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <nav v-if="authStore.isAuthenticated" class="flex items-center gap-2 text-xs">
           <RouterLink
             to="/vote"
-            class="px-3 py-1.5 rounded-md hover:bg-slate-100"
-            active-class="bg-blue-600 text-white hover:bg-blue-600"
+            class="px-3 py-1 rounded-lg border border-transparent hover:bg-slate-100"
+            active-class="border-slate-300 bg-slate-100"
           >
-            Voting
+            Vote
           </RouterLink>
           <RouterLink
             to="/admin"
-            class="px-3 py-1.5 rounded-md hover:bg-slate-100"
-            active-class="bg-slate-900 text-white bg-slate-900 hover:bg-slate-900"
+            class="px-3 py-1 rounded-lg border border-transparent hover:bg-slate-100"
+            active-class="border-slate-300 bg-slate-100"
           >
-            Admin Dashboard
+            Admin
           </RouterLink>
         </nav>
+
+        <div v-if="authStore.isAuthenticated" class="text-xs text-slate-600">
+          <div class="font-semibold">
+            {{ authStore.voter?.name }}
+          </div>
+          <div class="text-[10px]">Voter ID: {{ authStore.voter?.voter_id }}</div>
+        </div>
+
+        <button
+          v-if="authStore.isAuthenticated"
+          @click="handleLogout"
+          class="text-xs rounded-lg border border-slate-300 px-3 py-1 hover:bg-slate-100"
+        >
+          Logout
+        </button>
       </div>
     </header>
 
-    <!-- Page content -->
-    <main class="mx-auto max-w-6xl px-4 py-6">
+    <main class="p-4">
       <RouterView />
     </main>
-
-    <footer class="mt-8 border-t border-slate-200 bg-white">
-      <div
-        class="mx-auto max-w-6xl px-4 py-3 text-xs text-slate-500 flex justify-between"
-      >
-        <span>Prototype for DILG · {{ new Date().getFullYear() }}</span>
-        <span>Dev: Emerson</span>
-      </div>
-    </footer>
   </div>
 </template>

@@ -1,156 +1,158 @@
+<!-- src/views/AdminDashboard.vue -->
 <script setup>
-import { ref, onMounted, computed } from "vue";
-import api from "../api";
+import { ref, onMounted } from 'vue'
+import api from '../api'
 
-const positions = ref([]);
-const candidates = ref([]);
-const votes = ref([]);
+const loading = ref(false)
+const error = ref('')
 
-const loading = ref(false);
-const error = ref("");
+const stats = ref({
+  totalPositions: 0,
+  totalCandidates: 0,
+  totalVotes: 0,
+})
 
-const loadData = async () => {
-  error.value = "";
-  loading.value = true;
+const tally = ref([])
+
+const loadDashboard = async () => {
+  loading.value = true
+  error.value = ''
+
   try {
-    const [posRes, candRes, voteRes] = await Promise.all([
-      api.get("/positions/"),
-      api.get("/candidates/"),
-      api.get("/votes/"),
-    ]);
-    positions.value = posRes.data;
-    candidates.value = candRes.data;
-    votes.value = voteRes.data;
-  } catch (e) {
-    console.error(e);
-    error.value = "Failed to load dashboard data.";
-  } finally {
-    loading.value = false;
-  }
-};
+    // get positions, candidates, tally
+    const [posRes, candRes, tallyRes] = await Promise.all([
+      api.get('positions/'),
+      api.get('candidates/'),
+      api.get('tally/'),
+    ])
 
-const resultsByPosition = computed(() => {
-  const byPos = new Map();
-  const candidateMap = new Map(candidates.value.map(c => [c.id, c]));
-  const positionMap = new Map(positions.value.map(p => [p.id, p]));
+    const positions = posRes.data || []
+    const candidates = candRes.data || []
+    const tallyData = tallyRes.data || []
 
-  for (const v of votes.value) {
-    const c = candidateMap.get(v.candidate);
-    const p = positionMap.get(v.position);
-    if (!c || !p) continue;
-
-    if (!byPos.has(p.id)) {
-      byPos.set(p.id, { position: p, candidates: new Map() });
+    // compute total votes from tally
+    let totalVotes = 0
+    for (const pos of tallyData) {
+      for (const c of pos.candidates) {
+        totalVotes += c.votes
+      }
     }
-    const posEntry = byPos.get(p.id);
-    const current = posEntry.candidates.get(c.id) || { candidate: c, count: 0 };
-    current.count += 1;
-    posEntry.candidates.set(c.id, current);
+
+    stats.value.totalPositions = positions.length
+    stats.value.totalCandidates = candidates.length
+    stats.value.totalVotes = totalVotes
+
+    tally.value = tallyData
+  } catch (err) {
+    console.error(err)
+    error.value = 'Failed to load dashboard data.'
+  } finally {
+    loading.value = false
   }
+}
 
-  return Array.from(byPos.values()).map(entry => ({
-    position: entry.position,
-    rows: Array.from(entry.candidates.values()).sort((a, b) => b.count - a.count),
-  }));
-});
-
-onMounted(loadData);
+onMounted(loadDashboard)
 </script>
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between gap-2">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
       <div>
-        <h2 class="text-lg font-semibold">Admin Dashboard</h2>
-        <p class="text-sm text-slate-500">
-          Overview of positions, candidates, and current vote counts.
-        </p>
+        <h2 class="text-lg font-semibold text-slate-800">Admin Dashboard</h2>
+        <p class="text-xs text-slate-500">Overview of current election activity and live tally.</p>
       </div>
+
       <button
-        @click="loadData"
+        @click="loadDashboard"
         :disabled="loading"
-        class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+        class="text-xs rounded-lg border border-slate-300 px-3 py-1 hover:bg-slate-100 disabled:opacity-60"
       >
-        {{ loading ? "Refreshing..." : "Refresh" }}
+        {{ loading ? 'Refreshing...' : 'Refresh' }}
       </button>
     </div>
 
-    <div
-      v-if="error"
-      class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
-    >
+    <!-- Error -->
+    <p v-if="error" class="text-sm text-rose-600">
       {{ error }}
+    </p>
+
+    <!-- Stats cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <p class="text-xs text-slate-500 mb-1">Positions</p>
+        <p class="text-2xl font-semibold text-slate-800">
+          {{ stats.totalPositions }}
+        </p>
+        <p class="text-[11px] text-slate-400 mt-1">
+          Active positions configured for this election.
+        </p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <p class="text-xs text-slate-500 mb-1">Candidates</p>
+        <p class="text-2xl font-semibold text-slate-800">
+          {{ stats.totalCandidates }}
+        </p>
+        <p class="text-[11px] text-slate-400 mt-1">Total candidates across all positions.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-4">
+        <p class="text-xs text-slate-500 mb-1">Votes Cast</p>
+        <p class="text-2xl font-semibold text-slate-800">
+          {{ stats.totalVotes }}
+        </p>
+        <p class="text-[11px] text-slate-400 mt-1">Sum of all votes recorded so far.</p>
+      </div>
     </div>
 
-    <div class="grid gap-4 md:grid-cols-3">
-      <div class="bg-white rounded-xl border border-slate-200 p-4">
-        <p class="text-xs text-slate-500">Total positions</p>
-        <p class="mt-1 text-2xl font-semibold">{{ positions.length }}</p>
-      </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-4">
-        <p class="text-xs text-slate-500">Total candidates</p>
-        <p class="mt-1 text-2xl font-semibold">{{ candidates.length }}</p>
-      </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-4">
-        <p class="text-xs text-slate-500">Total votes recorded</p>
-        <p class="mt-1 text-2xl font-semibold">{{ votes.length }}</p>
-      </div>
-    </div>
+    <!-- Tally section -->
+    <div class="space-y-3">
+      <h3 class="text-sm font-semibold text-slate-800">Live Tally by Position</h3>
 
-    <div class="space-y-4">
-      <div
-        v-if="resultsByPosition.length === 0 && !loading"
-        class="text-sm text-slate-500"
-      >
-        No votes recorded yet.
+      <div v-if="loading" class="text-sm text-slate-500">Loading tally...</div>
+
+      <div v-else-if="tally.length === 0" class="text-xs text-slate-500">
+        No tally data yet. Cast some votes to see results.
       </div>
 
-      <div
-        v-for="entry in resultsByPosition"
-        :key="entry.position.id"
-        class="bg-white rounded-2xl border border-slate-200 overflow-hidden"
-      >
+      <div v-else class="space-y-4">
         <div
-          class="px-4 py-3 border-b border-slate-200 flex items-center justify-between"
+          v-for="position in tally"
+          :key="position.position_id"
+          class="bg-white rounded-2xl border border-slate-200 p-4"
         >
-          <div>
-            <h3 class="text-sm font-semibold">
-              {{ entry.position.name }}
-              <span v-if="entry.position.level" class="text-xs text-slate-500">
-                · {{ entry.position.level }}
-              </span>
-            </h3>
-            <p class="text-xs text-slate-500">
-              {{ entry.rows.length }} candidate<span
-                v-if="entry.rows.length !== 1"
-                >s</span
-              >
-            </p>
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <h4 class="text-sm font-semibold text-slate-800">
+                {{ position.position }}
+              </h4>
+              <p class="text-[11px] text-slate-500">Level: {{ position.level || 'N/A' }}</p>
+            </div>
           </div>
-        </div>
-        <div class="p-4 overflow-x-auto">
-          <table class="min-w-full text-left text-xs">
-            <thead class="text-slate-500 border-b border-slate-200">
-              <tr>
-                <th class="py-2 pr-4">Candidate</th>
-                <th class="py-2 pr-4">Party</th>
-                <th class="py-2 pr-4 text-right">Votes</th>
+
+          <table class="w-full text-xs border-t border-slate-100 mt-2">
+            <thead>
+              <tr class="text-left text-slate-500">
+                <th class="py-2 pr-2">Candidate</th>
+                <th class="py-2 pr-2">Party</th>
+                <th class="py-2 text-right">Votes</th>
               </tr>
             </thead>
             <tbody>
               <tr
-                v-for="row in entry.rows"
-                :key="row.candidate.id"
-                class="border-b border-slate-100 last:border-b-0"
+                v-for="c in position.candidates"
+                :key="c.candidate_id"
+                class="border-t border-slate-100"
               >
-                <td class="py-2 pr-4 text-sm">
-                  {{ row.candidate.full_name }}
+                <td class="py-1 pr-2 text-slate-800">
+                  {{ c.full_name }}
                 </td>
-                <td class="py-2 pr-4 text-xs text-slate-500">
-                  {{ row.candidate.party || "—" }}
+                <td class="py-1 pr-2 text-slate-500">
+                  {{ c.party || '—' }}
                 </td>
-                <td class="py-2 pr-4 text-right text-sm font-semibold">
-                  {{ row.count }}
+                <td class="py-1 text-right font-semibold">
+                  {{ c.votes }}
                 </td>
               </tr>
             </tbody>
