@@ -431,13 +431,14 @@ const closeAddVoterModal = () => {
 }
 
 const submitNewVoter = async () => {
-  if (!newVoter.value.name || !newVoter.value.section || !newVoter.value.pin) {
-    voterError.value = 'Please fill in name, section and PIN.'
+  // Name & section required, PIN optional
+  if (!newVoter.value.name || !newVoter.value.section) {
+    voterError.value = 'Please fill in name and section.'
     return
   }
 
-  if (newVoter.value.pin.length < 4) {
-    voterError.value = 'PIN should be at least 4 digits.'
+  if (newVoter.value.pin && newVoter.value.pin.length < 4) {
+    voterError.value = 'If you provide a PIN, it should be at least 4 digits.'
     return
   }
 
@@ -450,16 +451,22 @@ const submitNewVoter = async () => {
       {
         name: newVoter.value.name,
         section: newVoter.value.section,
-        pin: newVoter.value.pin,
+        pin: newVoter.value.pin || '',
       },
       { headers: authHeaders.value },
     )
 
     const voter = res.data
+    const createdPin = voter.pin || newVoter.value.pin || '(no PIN returned)'
+
     showAddVoterModal.value = false
+    await reloadAll()
 
     window.alert(
-      `Voter created.\n\nName: ${voter.name}\nVoter ID: ${voter.voter_id}\n\nRemember the PIN you set: ${newVoter.value.pin}`,
+      `Voter created.\n\n` +
+        `Name: ${voter.name}\n` +
+        `Voter ID: ${voter.voter_id}\n` +
+        `PIN: ${createdPin}`,
     )
   } catch (err) {
     console.error(err)
@@ -1024,7 +1031,8 @@ onMounted(async () => {
               placeholder="e.g. 4831"
             />
             <p class="text-[10px] text-slate-500 mt-1">
-              The PIN will be stored securely (hashed). You’ll need to give this PIN to the student.
+              Optional: leave blank to auto-generate a random 4-digit PIN. The PIN will be stored
+              securely (hashed). You’ll need to give this PIN to the student.
             </p>
           </div>
 
