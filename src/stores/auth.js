@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', {
       this.error = ''
 
       try {
-        const res = await api.post('login/', { voter_id, pin })
+        const res = await api.post('voter/login/', { voter_id, pin })
 
         this.token = res.data.token
         this.voter = res.data.voter

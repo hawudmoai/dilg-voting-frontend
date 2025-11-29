@@ -47,6 +47,18 @@ const candidatesForm = ref([
 const candidatesSubmitting = ref(false)
 const candidatesError = ref('')
 
+/* ---------- Add-Voter modal state ---------- */
+const showAddVoterModal = ref(false)
+const voterSubmitting = ref(false)
+const voterError = ref('')
+const sections = ref([])
+
+const newVoter = ref({
+  name: '',
+  section: null, // section id
+  pin: '',
+})
+
 /* ---------- Computed helpers ---------- */
 
 const selectedElection = computed(
@@ -191,7 +203,9 @@ const resetWizardState = () => {
   createdElectionId.value = null
   positionsForm.value = [{ name: '', level: '', seats: 1 }]
   createdPositions.value = []
-  candidatesForm.value = [{ full_name: '', party: '', photo_url: '', bio: '', position_id: null }]
+  candidatesForm.value = [
+    { full_name: '', party: '', photo_url: '', photo_portrait_url: '', bio: '', position_id: null },
+  ]
 }
 
 const openAddModal = () => {
@@ -384,6 +398,78 @@ const submitCandidatesAndFinish = async () => {
   }
 }
 
+/* ---------- Add Voter: API + handlers ---------- */
+
+const loadSections = async () => {
+  try {
+    const res = await api.get('sections/', {
+      headers: authHeaders.value,
+    })
+    sections.value = res.data || []
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+const openAddVoterModal = async () => {
+  voterError.value = ''
+  newVoter.value = {
+    name: '',
+    section: null,
+    pin: '',
+  }
+  showAddVoterModal.value = true
+
+  if (!sections.value.length) {
+    await loadSections()
+  }
+}
+
+const closeAddVoterModal = () => {
+  if (voterSubmitting.value) return
+  showAddVoterModal.value = false
+}
+
+const submitNewVoter = async () => {
+  if (!newVoter.value.name || !newVoter.value.section || !newVoter.value.pin) {
+    voterError.value = 'Please fill in name, section and PIN.'
+    return
+  }
+
+  if (newVoter.value.pin.length < 4) {
+    voterError.value = 'PIN should be at least 4 digits.'
+    return
+  }
+
+  voterSubmitting.value = true
+  voterError.value = ''
+
+  try {
+    const res = await api.post(
+      'admin/voters/',
+      {
+        name: newVoter.value.name,
+        section: newVoter.value.section,
+        pin: newVoter.value.pin,
+      },
+      { headers: authHeaders.value },
+    )
+
+    const voter = res.data
+    showAddVoterModal.value = false
+
+    window.alert(
+      `Voter created.\n\nName: ${voter.name}\nVoter ID: ${voter.voter_id}\n\nRemember the PIN you set: ${newVoter.value.pin}`,
+    )
+  } catch (err) {
+    console.error(err)
+    voterError.value =
+      err.response?.data?.error || 'Failed to create voter. Please check the fields and try again.'
+  } finally {
+    voterSubmitting.value = false
+  }
+}
+
 /* ---------- Watch & mount ---------- */
 
 watch(selectedElectionId, async () => {
@@ -405,6 +491,14 @@ onMounted(async () => {
       </div>
 
       <div class="flex items-center gap-2">
+        <!-- Add Voter -->
+        <button
+          @click="openAddVoterModal"
+          class="text-xs rounded-lg bg-sky-600 text-white px-3 py-1.5 shadow-sm"
+        >
+          Add Voter
+        </button>
+
         <!-- Add Election: always visible -->
         <button
           @click="openAddModal"
@@ -879,6 +973,81 @@ onMounted(async () => {
               {{ candidatesSubmitting ? 'Finishing…' : 'Finish Setup' }}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD VOTER MODAL -->
+    <div
+      v-if="showAddVoterModal"
+      class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-3"
+    >
+      <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+        <h3 class="text-sm font-semibold mb-4">Add New Voter</h3>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">Full name</label>
+            <input
+              v-model="newVoter.name"
+              type="text"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+              placeholder="e.g. Juan Dela Cruz"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">Section</label>
+            <select
+              v-model.number="newVoter.section"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-slate-50"
+            >
+              <option :value="null">Select a section</option>
+              <option v-for="s in sections" :key="s.id" :value="s.id">
+                <span v-if="s.grade_level"> {{ s.grade_level.name }} – {{ s.name }} </span>
+                <span v-else>
+                  {{ s.name }}
+                </span>
+              </option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-700 mb-1">
+              PIN (for voter login)
+            </label>
+            <input
+              v-model="newVoter.pin"
+              type="text"
+              maxlength="10"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+              placeholder="e.g. 4831"
+            />
+            <p class="text-[10px] text-slate-500 mt-1">
+              The PIN will be stored securely (hashed). You’ll need to give this PIN to the student.
+            </p>
+          </div>
+
+          <p v-if="voterError" class="text-xs text-rose-600">
+            {{ voterError }}
+          </p>
+        </div>
+
+        <div class="mt-5 flex justify-end gap-2">
+          <button
+            @click="closeAddVoterModal"
+            :disabled="voterSubmitting"
+            class="text-xs px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            @click="submitNewVoter"
+            :disabled="voterSubmitting"
+            class="text-xs px-3 py-1.5 rounded-lg bg-sky-600 text-white shadow-sm disabled:bg-sky-300 disabled:cursor-not-allowed"
+          >
+            {{ voterSubmitting ? 'Saving…' : 'Create Voter' }}
+          </button>
         </div>
       </div>
     </div>
