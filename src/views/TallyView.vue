@@ -1,7 +1,9 @@
-<!-- src/views/TallyView.vue -->
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../api'
+import { useAdminAuthStore } from '../stores/adminAuth'
+
+const adminAuth = useAdminAuthStore()
 
 const loading = ref(false)
 const error = ref('')
@@ -11,11 +13,19 @@ const loadTally = async () => {
   loading.value = true
   error.value = ''
   try {
-    const res = await api.get('tally/')
+    const res = await api.get('tally/', {
+      headers: {
+        'X-Admin-Token': adminAuth.token,
+      },
+    })
     tally.value = res.data
   } catch (err) {
     console.error(err)
-    error.value = 'Failed to load tally.'
+    if (err.response?.status === 403) {
+      error.value = 'Admin access required. Please log in as admin.'
+    } else {
+      error.value = 'Failed to load tally.'
+    }
   } finally {
     loading.value = false
   }
